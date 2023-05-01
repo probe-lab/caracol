@@ -119,6 +119,12 @@ type DataPoint struct {
 	Value float64
 }
 
+type CollectionValue struct {
+	Seq   int
+	Time  time.Time
+	Value *float64
+}
+
 type Querier interface {
 	Execute(ctx context.Context, query string, fromTime, toTime time.Time, interval QueryInterval) ([]DataPoint, error)
 }
@@ -225,6 +231,99 @@ func FindCollectionGaps(ctx context.Context, db *DB, queryID int) ([]int, error)
 	}
 
 	return seqs, nil
+}
+
+func GetCollectionValues(ctx context.Context, db *DB, queryID int, from *int, to *int) ([]CollectionValue, error) {
+	conn, err := db.NewConn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+	defer conn.Release()
+
+	var rows pgx.Rows
+	if from == nil {
+		if to == nil {
+			sql := `with q as (
+			  select start, case
+			    when interval='hourly' then '1 hour'::interval
+			    when interval='daily'  then '1 day'::interval
+			    when interval='weekly' then '1 week'::interval
+			  end as intrval, case
+			    when interval='hourly' then extract('hour' from $2-start)::integer
+			    when interval='daily'  then extract('day' from $2-start)::integer
+			    when interval='weekly' then extract('day' from $2-start)::integer/7
+			    else 0
+			  end as last
+			  from queries where id=$1
+			)
+			select expected as seq, q.start+expected*q.intrval as date,c.value as value
+			from q, generate_series(1, q.last, 1) expected
+			left join collections c on expected = c.seq and c.query_id=$1;
+			`
+			rows, err = conn.Query(ctx, sql, queryID, time.Now().UTC())
+		} else {
+			sql := `with q as (
+			  select start, case
+			    when interval='hourly' then '1 hour'::interval
+			    when interval='daily'  then '1 day'::interval
+			    when interval='weekly' then '1 week'::interval
+			  end as intrval
+			  from queries where id=$1
+			)
+			select expected as seq, q.start+expected*q.intrval as date,c.value as value
+			from q, generate_series(1, $2, 1) expected
+			left join collections c on expected = c.seq and c.query_id=$1;
+			`
+			rows, err = conn.Query(ctx, sql, queryID, *to)
+		}
+	} else {
+		if to == nil {
+			sql := `with q as (
+			  select start, case
+			    when interval='hourly' then '1 hour'::interval
+			    when interval='daily'  then '1 day'::interval
+			    when interval='weekly' then '1 week'::interval
+			  end as intrval, case
+			    when interval='hourly' then extract('hour' from $3-start)::integer
+			    when interval='daily'  then extract('day' from $3-start)::integer
+			    when interval='weekly' then extract('day' from $3-start)::integer/7
+			    else 0
+			  end as last
+			  from queries where id=$1
+			)
+			select expected as seq, q.start+expected*q.intrval as date,c.value as value
+			from q, generate_series($2, q.last, 1) expected
+			left join collections c on expected = c.seq and c.query_id=$1;
+			`
+			rows, err = conn.Query(ctx, sql, queryID, *from, time.Now().UTC())
+		} else {
+			sql := `with q as (
+			  select start, case
+			    when interval='hourly' then '1 hour'::interval
+			    when interval='daily'  then '1 day'::interval
+			    when interval='weekly' then '1 week'::interval
+			  end as intrval
+			  from queries where id=$1
+			)
+			select expected as seq, q.start+expected*q.intrval as date,c.value as value
+			from q, generate_series($2, $3, 1) expected
+			left join collections c on expected = c.seq and c.query_id=$1;
+			`
+			rows, err = conn.Query(ctx, sql, queryID, *from, *to)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	points, err := pgx.CollectRows(rows, pgx.RowToStructByPos[CollectionValue])
+	if err != nil {
+		return nil, fmt.Errorf("collect rows: %w", err)
+	}
+
+	return points, nil
 }
 
 func WriteCollectionSeq(ctx context.Context, db *DB, queryID int, seq int, value float64, force bool) error {

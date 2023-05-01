@@ -66,6 +66,28 @@ var collectionCommand = &cli.Command{
 				},
 			}, dbFlags, loggingFlags),
 		},
+		{
+			Name:   "get",
+			Usage:  "Get values values from a collection.",
+			Action: CollectionGet,
+			Flags: union([]cli.Flag{
+				&cli.IntFlag{
+					Name:     "id",
+					Required: true,
+					Usage:    "ID of query.",
+				},
+				&cli.IntFlag{
+					Name:     "from",
+					Required: false,
+					Usage:    "Show values with sequence equal to or greater than this number.",
+				},
+				&cli.IntFlag{
+					Name:     "to",
+					Required: false,
+					Usage:    "Show values with sequence equal to or less than this number.",
+				},
+			}, dbFlags, loggingFlags),
+		},
 	},
 }
 
@@ -269,6 +291,64 @@ func CollectionCollect(cc *cli.Context) error {
 	if err := WriteCollectionSeq(ctx, db, queryID, points[0].Seq, points[0].Value, force); err != nil {
 		return fmt.Errorf("write collection sequence: %w", err)
 	}
+
+	return nil
+}
+
+func CollectionGet(cc *cli.Context) error {
+	ctx := cc.Context
+	setupLogging()
+
+	queryID := cc.Int("id")
+	if queryID < 0 {
+		return fmt.Errorf("ID must be a positive integer")
+	}
+
+	var fromSeq *int
+	var toSeq *int
+
+	if cc.IsSet("from") {
+		from := cc.Int("from")
+		fromSeq = &from
+		if *fromSeq <= 0 {
+			return fmt.Errorf("from must be greater than zero")
+		}
+	}
+	if cc.IsSet("to") {
+		to := cc.Int("to")
+		toSeq = &to
+
+		if *toSeq <= 0 {
+			return fmt.Errorf("to must be greater than zero")
+		}
+
+		if fromSeq != nil && *fromSeq > *toSeq {
+			return fmt.Errorf("from must not be greater than to")
+		}
+
+	}
+
+	db := NewDB(dbConnStr())
+
+	points, err := GetCollectionValues(ctx, db, queryID, fromSeq, toSeq)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	if len(points) == 0 {
+		return fmt.Errorf("no points found")
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+	fmt.Fprintln(w, "Seq\t| Time\t| Value")
+	for _, pt := range points {
+		v := "(missing)"
+		if pt.Value != nil {
+			v = formatFloat64(*pt.Value)
+		}
+		fmt.Fprintf(w, "%d\t| %s\t| %v\t\n", pt.Seq, pt.Time.Format("2006-01-02T15:04:05Z"), v)
+	}
+	return w.Flush()
 
 	return nil
 }
