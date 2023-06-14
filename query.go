@@ -66,6 +66,24 @@ var queryCommand = &cli.Command{
 			}, dbFlags, loggingFlags),
 		},
 		{
+			Name:   "finish",
+			Usage:  "Finish a query.",
+			Action: QueryFinish,
+			Flags: union([]cli.Flag{
+				&cli.IntFlag{
+					Name:     "id",
+					Required: true,
+					Usage:    "ID of query.",
+				},
+				&cli.StringFlag{
+					Name:     "finish",
+					Required: true,
+					Usage:    "The time at which the query's collected data should finish, a valid RFC3339 timestamp or the keyword 'now'.",
+					Value:    "now",
+				},
+			}, dbFlags, loggingFlags),
+		},
+		{
 			Name:   "exec",
 			Usage:  "Execute a query.",
 			Action: QueryExec,
@@ -224,10 +242,10 @@ func QueryAdd(cc *cli.Context) error {
 
 	var finish *time.Time
 	if finishStr != "" {
-		f, err := time.Parse("2006-01-02T15:04:05Z", startStr)
+		f, err := time.Parse("2006-01-02T15:04:05Z", finishStr)
 		if err != nil {
 			// attempt to parse as unix timestamp (seconds since epoch)
-			ts, err := strconv.ParseInt(startStr, 10, 32)
+			ts, err := strconv.ParseInt(finishStr, 10, 32)
 			if err != nil {
 				return fmt.Errorf("start must be a time formatted as '2006-01-02T15:04:05Z' or a unix timestamp")
 			}
@@ -463,4 +481,63 @@ func QueryTest(cc *cli.Context) error {
 		fmt.Fprintf(w, "%d\t| %s\t| %v\t\n", pt.Seq, pt.Time.Format("2006-01-02T15:04:05Z"), formatFloat64(pt.Value))
 	}
 	return w.Flush()
+}
+
+func QueryFinish(cc *cli.Context) error {
+	ctx := cc.Context
+	setupLogging()
+
+	queryID := cc.Int("id")
+	finishStr := strings.TrimSpace(cc.String("finish"))
+
+	if queryID < 0 {
+		return fmt.Errorf("ID must be a positive integer")
+	}
+
+	var finish *time.Time
+	if finishStr == "" {
+		return fmt.Errorf("finish time must be supplied")
+	}
+
+	if finishStr == "now" {
+		f := time.Now().UTC()
+		finish = &f
+	} else {
+		f, err := time.Parse("2006-01-02T15:04:05Z", finishStr)
+		if err != nil {
+			// attempt to parse as unix timestamp (seconds since epoch)
+			ts, err := strconv.ParseInt(finishStr, 10, 32)
+			if err != nil {
+				return fmt.Errorf("start must be a time formatted as '2006-01-02T15:04:05Z' or a unix timestamp")
+			}
+			f = time.Unix(ts, 0)
+		}
+
+		finish = &f
+	}
+
+	db := NewDB(dbConnStr())
+	conn, err := db.NewConn(ctx)
+	if err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+	defer conn.Release()
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, "update queries set finish=$1 where id=$2", finish, queryID)
+	if err != nil {
+		return fmt.Errorf("update: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
 }
