@@ -139,6 +139,9 @@ func (m *QueryMonitor) Run(ctx context.Context) error {
 	m.collectionCounter, err = prom.NewPrometheusCounter("query_collection_total", "Total number of collections made for a query", map[string]string{
 		"query_id": strconv.Itoa(m.query.ID),
 	})
+	if err != nil {
+		return fmt.Errorf("create active_queries gauge: %w", err)
+	}
 	m.errorCounter, err = prom.NewPrometheusCounter("query_error_total", "Total number of errors encountered when collecting for a query", map[string]string{
 		"query_id": strconv.Itoa(m.query.ID),
 	})
