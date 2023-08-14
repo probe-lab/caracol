@@ -349,6 +349,4 @@ func CollectionGet(cc *cli.Context) error {
 		fmt.Fprintf(w, "%d\t| %s\t| %v\t\n", pt.Seq, pt.Time.Format("2006-01-02T15:04:05Z"), v)
 	}
 	return w.Flush()
-
-	return nil
 }
