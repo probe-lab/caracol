@@ -68,7 +68,7 @@ var collectionCommand = &cli.Command{
 		},
 		{
 			Name:   "get",
-			Usage:  "Get values values from a collection.",
+			Usage:  "Get values from a collection.",
 			Action: CollectionGet,
 			Flags: union([]cli.Flag{
 				&cli.IntFlag{
@@ -85,6 +85,28 @@ var collectionCommand = &cli.Command{
 					Name:     "to",
 					Required: false,
 					Usage:    "Show values with sequence equal to or less than this number.",
+				},
+			}, dbFlags, loggingFlags),
+		},
+		{
+			Name:   "set",
+			Usage:  "Set a sequence value in a collection.",
+			Action: CollectionSet,
+			Flags: union([]cli.Flag{
+				&cli.IntFlag{
+					Name:     "id",
+					Required: true,
+					Usage:    "ID of query.",
+				},
+				&cli.IntFlag{
+					Name:     "seq",
+					Required: true,
+					Usage:    "Sequence number of value in collection.",
+				},
+				&cli.Float64Flag{
+					Name:     "value",
+					Required: true,
+					Usage:    "Value to set.",
 				},
 			}, dbFlags, loggingFlags),
 		},
@@ -328,6 +350,7 @@ func CollectionGet(cc *cli.Context) error {
 
 	}
 
+	slog.Debug("getting collection values", "query_id", queryID, "from", fromSeq, "to", toSeq)
 	db := NewDB(dbConnStr())
 
 	points, err := GetCollectionValues(ctx, db, queryID, fromSeq, toSeq)
@@ -349,4 +372,47 @@ func CollectionGet(cc *cli.Context) error {
 		fmt.Fprintf(w, "%d\t| %s\t| %v\t\n", pt.Seq, pt.Time.Format("2006-01-02T15:04:05Z"), v)
 	}
 	return w.Flush()
+}
+
+func CollectionSet(cc *cli.Context) error {
+	ctx := cc.Context
+	setupLogging()
+
+	queryID := cc.Int("id")
+	if queryID < 0 {
+		return fmt.Errorf("ID must be a positive integer")
+	}
+
+	seq := cc.Int("seq")
+	if seq <= 0 {
+		return fmt.Errorf("sequence must be greater than zero")
+	}
+
+	value := cc.Float64("value")
+
+	db := NewDB(dbConnStr())
+
+	conn, err := db.NewConn(ctx)
+	if err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	slog.Info("inserting collected value", "query_id", queryID, "seq", seq, "value", value)
+	_, err = tx.Exec(ctx, "insert into collections(query_id,seq,value) values ($1,$2,$3)", queryID, seq, value)
+	if err != nil {
+		return fmt.Errorf("exec (%T): %w", err, err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	return nil
 }
