@@ -207,9 +207,9 @@ func FindCollectionGaps(ctx context.Context, db *DB, queryID int) ([]int, error)
 
 	sql := `with q as (
 			  select start, case
-			    when interval='hourly' then extract('hour' from $2-start)::integer
-			    when interval='daily'  then extract('day' from $2-start)::integer
-			    when interval='weekly' then extract('day' from $2-start)::integer/7
+			    when interval='hourly' then extract('hour' from least($2,coalesce(finish,$2))-start)::integer
+			    when interval='daily'  then extract('day' from least($2,coalesce(finish,$2))-start)::integer
+			    when interval='weekly' then extract('day' from least($2,coalesce(finish,$2))-start)::integer/7
 			    else 0
 			  end as last
 			  from queries where id=$1
