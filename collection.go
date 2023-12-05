@@ -384,8 +384,8 @@ func CollectionSet(cc *cli.Context) error {
 	}
 
 	seq := cc.Int("seq")
-	if seq <= 0 {
-		return fmt.Errorf("sequence must be greater than zero")
+	if seq < 0 {
+		return fmt.Errorf("sequence must be zero or greater")
 	}
 
 	value := cc.Float64("value")
