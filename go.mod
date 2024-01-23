@@ -1,4 +1,4 @@
-module github.com/plprobelab/caracol
+module github.com/probe-lab/caracol
 
 go 1.20
 
