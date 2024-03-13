@@ -2,7 +2,6 @@ module github.com/probe-lab/caracol
 
 go 1.21
 
-
 require (
 	github.com/iand/pontium v0.3.1
 	github.com/jackc/pgx/v5 v5.3.1
