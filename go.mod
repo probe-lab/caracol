@@ -1,6 +1,6 @@
 module github.com/probe-lab/caracol
 
-go 1.21
+go 1.22
 
 require (
 	github.com/iand/pontium v0.3.1
