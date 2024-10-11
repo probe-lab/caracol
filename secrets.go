@@ -51,6 +51,10 @@ func SecretEnvVarNames(id int, authType AuthType) (map[SecretType]string, error)
 	case AuthTypeBasicAuth:
 		vars[SecretTypeUsername] = fmt.Sprintf("%sPROVIDER%d_USERNAME", envPrefix, id)
 		vars[SecretTypePassword] = fmt.Sprintf("%sPROVIDER%d_PASSWORD", envPrefix, id)
+	case AuthTypeAWSAccessKey:
+		vars[SecretTypeAccessKeyID] = fmt.Sprintf("%sPROVIDER%d_ACCESS_KEY_ID", envPrefix, id)
+		vars[SecretTypeSecretAccessKey] = fmt.Sprintf("%sPROVIDER%d_SECRET_ACCESS_KEY", envPrefix, id)
+		vars[SecretTypeRegion] = fmt.Sprintf("%sPROVIDER%d_REGION", envPrefix, id)
 	default:
 		return nil, fmt.Errorf("unsupported auth type: %q", authType)
 	}

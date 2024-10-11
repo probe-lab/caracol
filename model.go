@@ -72,6 +72,7 @@ func (t ApiType) String() string { return string(t) }
 const (
 	ApiTypeGrafanaCloud  ApiType = "grafanacloud"
 	ApiTypeElasticSearch ApiType = "elasticsearch"
+	ApiTypeCloudWatch    ApiType = "cloudwatch"
 )
 
 type AuthType string
@@ -79,8 +80,9 @@ type AuthType string
 func (t AuthType) String() string { return string(t) }
 
 const (
-	AuthTypeBearerToken AuthType = "bearer_token"
-	AuthTypeBasicAuth   AuthType = "basic_auth"
+	AuthTypeBearerToken  AuthType = "bearer_token"
+	AuthTypeBasicAuth    AuthType = "basic_auth"
+	AuthTypeAWSAccessKey AuthType = "aws_access_key"
 )
 
 type QueryType string
@@ -90,6 +92,7 @@ func (t QueryType) String() string { return string(t) }
 const (
 	QueryTypePrometheus             QueryType = "prometheus"
 	QueryTypeElasticSearchAggregate QueryType = "elasticsearch_aggregate"
+	QueryTypeCloudWatch             QueryType = "cloudwatch"
 )
 
 // WARNING: don't change field order since it is used when populating from database
@@ -108,9 +111,12 @@ type SecretType string
 func (t SecretType) String() string { return string(t) }
 
 const (
-	SecretTypeBearerToken SecretType = "bearer_token"
-	SecretTypeUsername    SecretType = "username"
-	SecretTypePassword    SecretType = "password"
+	SecretTypeBearerToken     SecretType = "bearer_token"
+	SecretTypeUsername        SecretType = "username"
+	SecretTypePassword        SecretType = "password"
+	SecretTypeAccessKeyID     SecretType = "access_key_id"
+	SecretTypeSecretAccessKey SecretType = "secret_access_key"
+	SecretTypeRegion          SecretType = "region"
 )
 
 type DataPoint struct {

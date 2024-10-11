@@ -52,6 +52,12 @@ func DispatchQuery(ctx context.Context, qry *Query, seq int, ps ProviderSecrets)
 			return nil, fmt.Errorf("unsupported collection type: %q", qry.ApiType)
 
 		}
+	case ApiTypeCloudWatch:
+		var err error
+		querier, err = NewCloudWatchQuerier(ctx, ps[SecretTypeRegion], ps[SecretTypeAccessKeyID], ps[SecretTypeSecretAccessKey])
+		if err != nil {
+			return nil, fmt.Errorf("cloudwatch querier: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported datasource type: %q", qry.ApiType)
 	}
